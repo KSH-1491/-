@@ -1,0 +1,45 @@
+import numpy as np
+import pandas as pd
+from tensorflow import keras
+from keras.layers import Dense, Input
+from keras.models import Sequential
+from keras.callbacks import EarlyStopping
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+df = pd.read_csv('train-data.csv')
+df = df.drop(columns=['Unnamed: 0', 'Name', 'New_Price'])
+
+df['Mileage'] = df['Mileage'].astype(str).str.split().str[0].replace('null', np.nan).astype(float)
+df['Engine'] = df['Engine'].astype(str).str.split().str[0].replace('null', np.nan).astype(float)
+df['Power'] = df['Power'].astype(str).str.split().str[0].replace('null', np.nan).astype(float)
+
+df['Mileage'] = df['Mileage'].fillna(df['Mileage'].median())
+df['Engine'] = df['Engine'].fillna(df['Engine'].median())
+df['Power'] = df['Power'].fillna(df['Power'].median())
+df['Seats'] = df['Seats'].fillna(df['Seats'].median())
+
+df = pd.get_dummies(df, columns=['Location', 'Fuel_Type', 'Transmission', 'Owner_Type'], drop_first=True)
+
+X = df.drop(['Price'], axis=1)
+y = df['Price']
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+model = Sequential()
+model.add(Input(shape=(X_train.shape[1],)))
+model.add(Dense(128, activation='relu'))
+model.add(Dense(64, activation='relu'))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(1))
+
+model.compile(loss='mse', optimizer=keras.optimizers.Adam(learning_rate=0.001), metrics=['mae'])
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=15)
+
+history = model.fit(X_train, y_train, validation_split=0.2, epochs=500, batch_size=32, callbacks=[early_stopping], verbose=1)
+
+print("Test MAE:", model.evaluate(X_test, y_test, verbose=0)[1])
